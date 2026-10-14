@@ -1,0 +1,7 @@
+# Só as três skills da cena 3D entram neste repositório
+/*
+!/.gitignore
+!/cena-explodida-scroll/
+!/cena-blueprint-3d/
+!/cena-explodida-interativa/
+node_modules/

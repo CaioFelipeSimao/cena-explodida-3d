@@ -1,0 +1,532 @@
+<title>Sonda do relógio</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&display=swap">
+<style>
+  /* Estilo DESTE projeto (um regulador de oficina, meados do século XX): materiais reais, nada de quadrinhos.
+     Ferro fundido preto, níquel, latão, aço galvanizado, esmalte de porcelana; um único acento, o vermelho-sinal do ponteiro dos segundos. */
+  :root {
+    color-scheme: light;
+    --fundo: #c3c6bf;      /* cinza de bancada: deixa a caixa preta aparecer */
+    --ferro: #1d2024;      /* ferro fundido da caixa, ponteiros, texto */
+    --esmalte: #efece3;    /* porcelana do mostrador */
+    --niquel: #b9bfc6;     /* bisel */
+    --laton: #b88a3c;      /* mecanismo */
+    --galv: #8a9096;       /* tampa traseira */
+    --sinal: #c4291f;      /* ponteiro dos segundos */
+    --fonte: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--fundo); color: var(--ferro); font-family: var(--fonte); }
+
+  .palco {
+    height: 100vh; height: 100svh; overflow: hidden;
+    display: grid; place-items: center;
+    perspective: 1800px;
+    background: radial-gradient(ellipse at 50% 42%, #d1d4cd, var(--fundo) 70%);
+  }
+  /* duas escalas separadas: .escala só ajusta o relógio ao tamanho da tela (o JS refaz quando a tela muda, a animação nunca mexe nela);
+     .zoom é o zoom animado pelo scroll, com valores fixos. Se fossem a mesma, um resize brigaria com a timeline. */
+  .escala, .zoom { transform-style: preserve-3d; }
+  .relogio { position: relative; width: 0; height: 0; transform-style: preserve-3d; }
+
+  /* cada peça é um volume 3D centrado na origem: --w e --h dão o tamanho da caixa da peça, a margem negativa centra */
+  .peca {
+    position: absolute; left: 0; top: 0;
+    width: var(--w); height: var(--h);
+    margin: calc(var(--h) / -2) 0 0 calc(var(--w) / -2);
+    transform-style: preserve-3d;
+  }
+  /* tampas (frente e verso) de um volume: planos nas duas pontas da espessura */
+  .cap, .lasca .f { position: absolute; inset: 0; backface-visibility: hidden; }
+  /* laterais: .cil fica no centro da peça; cada lasca é um plano fino esticado ao longo de Z (a espessura) */
+  /* cópia achatada da silhueta (espessura por empilhamento): visível dos dois lados, sem backface-visibility */
+  .meio { position: absolute; inset: 0; }
+  .cil { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; }
+  .lasca { position: absolute; left: 0; top: 0; width: var(--w); height: var(--h);
+    margin: calc(var(--h) / -2) 0 0 calc(var(--w) / -2); transform-style: preserve-3d; }
+
+  .dica { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center;
+    font: 600 13px/1 var(--fonte); letter-spacing: .16em; text-transform: uppercase; opacity: .6; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .dica, .inicio { display: none; } }
+
+  /* Tela de um toque (iPhone: o frame roda a ~30 fps até o primeiro toque). Só o pointerup dispensa. */
+  .inicio { position: fixed; inset: 0; z-index: 5; display: grid; place-items: end center; background: none; border: 0;
+    padding: 0 16px calc(18px + env(safe-area-inset-bottom, 0px)); touch-action: pan-y; cursor: pointer;
+    font: 600 13px/1 var(--fonte); letter-spacing: .16em; text-transform: uppercase; color: var(--ferro); }
+  /* ---- diagnóstico de desempenho (medidor de fps + chaves); #sem-fps na URL esconde ---- */
+  .hud { position: fixed; left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top, 0px)); z-index: 10; padding: 8px 10px; border-radius: 6px;
+    background: rgba(29,32,36,.86); color: #efece3; font: 500 11px/1.35 ui-monospace, monospace; }
+  .hud b { font-size: 15px; }
+  .hud .chaves { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .hud button { font: 600 11px/1 ui-monospace, monospace; color: #efece3; background: #3a3f46; border: 1px solid #5a616b; border-radius: 6px; padding: 9px 10px; min-height: 36px; }
+  .hud button.lig { background: #efece3; color: #1d2024; }
+  body.semlascas .lasca, body.semlascas .meio { display: none; }
+  /* montado, o que fica dentro está escondido atrás do mostrador e do vidro: sai da composição (o iPhone compõe cada camada, visível ou não) */
+  body.m-ini .interno, body.m-fim1 .interno { display: none; }
+  .inicio span { padding: 12px 18px; border: 1px solid var(--ferro); border-radius: 999px; background: rgba(195,198,191,.8); }
+
+  body.semlascas .lasca { display: none; }
+  .painel { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top, 0px); z-index: 10; padding: 10px 16px; background: rgba(195,198,191,.92);
+    font: 600 13px/1.3 var(--fonte); color: var(--ferro); }
+  .res { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); background: rgba(195,198,191,.94);
+    font: 600 12px/1.35 ui-monospace, monospace; color: var(--ferro); white-space: pre-wrap; }
+  .inicio { top: 40px; place-items: center; }
+</style>
+
+<section class="palco">
+  <div class="escala"><div class="relogio" id="relogio"></div></div>
+</section>
+<div class="painel" id="painel">Sonda de desempenho do relógio: 8 testes de 6 segundos</div>
+<div class="res" id="res"></div>
+<button class="inicio" id="ini" type="button"><span>Toque para iniciar o teste</span></button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  /* ================= FERRAMENTAS DE VOLUME ================= */
+  /* Toda peça é um SÓLIDO: duas tampas (frente e verso) mais as laterais da espessura.
+     Laterais: cilindro (discos, aros, furos) ou extrusão de um contorno (ponteiros, dentes de engrenagem).
+     Ângulos em graus a partir do topo, no sentido horário (mesma convenção do CSS). */
+  const rad = g => g * Math.PI / 180;
+  const pol = (r, a) => [r * Math.cos(rad(a)), r * Math.sin(rad(a))];   // a: 0 = direita, horário
+  const S = (t, s) => `<svg viewBox="${-t / 2} ${-t / 2} ${t} ${t}" width="100%" height="100%" style="display:block">${s}</svg>`;
+  const circ = (x, y, r) => `M${x - r},${y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0Z`;
+  /* polígono regular de n lados cujo APÓTEMA é R: bate exatamente com n lascas tangentes ao círculo de raio R */
+  const poli = (R, n) => { const Rv = R / Math.cos(Math.PI / n); return 'M' + Array.from({ length: n }, (_, k) => fmt(pol(Rv, k * 360 / n - 180 / n - 90))).join('L') + 'Z'; };
+  const fmt = p => p.map(v => +v.toFixed(2)).join(',');
+  const caminho = pts => `M${pts.map(fmt).join('L')}Z`;
+
+  /* material: matiz, saturação, luminosidade média, amplitude do brilho, alfa (vidro). A luz vem de cima à esquerda (315°). */
+  const cor = (m, l) => m.a ? `hsla(${m.h} ${m.s}% ${l}% / ${m.a})` : `hsl(${m.h} ${m.s}% ${l}%)`;
+  const luz = (m, frente) => m.lum + m.amp * Math.cos(rad(frente - 315));
+  const M = {
+    ferro:  { h: 215, s: 8,  lum: 15, amp: 9 },
+    niquel: { h: 214, s: 8,  lum: 62, amp: 26 },
+    latao:  { h: 40,  s: 55, lum: 46, amp: 20 },
+    aco:    { h: 210, s: 10, lum: 58, amp: 22 },
+    galv:   { h: 200, s: 7,  lum: 56, amp: 18 },
+    esmalte:{ h: 45,  s: 14, lum: 80, amp: 8 },
+    preto:  { h: 220, s: 8,  lum: 12, amp: 8 },
+    sinal:  { h: 4,   s: 68, lum: 42, amp: 14 },
+    vidro:  { h: 170, s: 30, lum: 78, amp: 10, a: .5 },
+  };
+  const grad = (m, l) => `linear-gradient(180deg,${cor(m, l + 8)},${cor(m, l)} 20%,${cor(m, l - 3)} 80%,${cor(m, l - 10)})`;
+
+  const plano = (w, h, tr, bg) => `<div class="lasca" style="--w:${w}px;--h:${h}px;transform:${tr}"><div class="f" style="background:${bg}"></div></div>`;
+
+  /* lateral cilíndrica: N lascas em círculo de raio R e espessura prof, com centro (cx,cy).
+     rotateZ distribui em volta, translateY leva ao raio, rotateX(90deg) deita a lasca ao longo de Z.
+     dentro = a face aponta para o eixo (parede interna de um tubo, parede de um furo). */
+  function casco(R, prof, N, m, o = {}) {
+    const { cx = 0, cy = 0, cz = 0, dentro = false } = o, w = 2 * R * Math.tan(Math.PI / N) + .8;
+    let h = '';
+    for (let i = 0; i < N; i++) {
+      const a = i * 360 / N, l = luz(m, dentro ? a + 180 : a);
+      h += plano(w, prof + 1.2, `translate3d(${cx}px,${cy}px,${cz}px) rotateZ(${a}deg) translateY(${-R}px) rotateX(90deg)${dentro ? ' rotateY(180deg)' : ''}`, grad(m, l));
+    }
+    return h;
+  }
+  /* extrusão: uma lateral plana por aresta do contorno (pontos em sentido horário na tela; inverte sozinho se vier ao contrário) */
+  const horario = pts => pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) > 0;
+  function bordas(pts, prof, m) {
+    let h = '';
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length], dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
+      if (L < .05) continue;
+      const th = Math.atan2(dy, dx);
+      h += plano(+(L + .4).toFixed(2), prof, `translate(${+((p[0] + q[0]) / 2).toFixed(2)}px,${+((p[1] + q[1]) / 2).toFixed(2)}px) rotateZ(${th}rad) rotateX(90deg)`, grad(m, luz(m, th * 180 / Math.PI)));
+    }
+    return h;
+  }
+  /* pino: cilindro curto que sai de uma face (casco com deslocamento em z) e a ponta redonda que o fecha (olhando para -z) */
+  const pe = (cx, cy, cz, R, comp, m) =>
+    casco(R, comp, 6, m, { cx, cy, cz }) +
+    `<div class="lasca" style="--w:${2 * R}px;--h:${2 * R}px;transform:translate3d(${cx}px,${cy}px,${cz - comp / 2}px) rotateY(180deg)"><div class="f" style="border-radius:50%;background:${cor(m, m.lum)}"></div></div>`;
+  const orienta = pts => horario(pts) ? pts : pts.slice().reverse();
+  const circulo = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => { const [x, y] = pol(r, i * 360 / n); return [cx + x, cy + y]; });
+
+  /* tampas: a da frente fica em +prof/2 olhando para +z; a de trás em -prof/2 olhando para -z */
+  const tampas = (prof, f, b) =>
+    `<div class="cap" style="transform:translateZ(${prof / 2}px)">${f}</div>` +
+    `<div class="cap" style="transform:rotateY(180deg) translateZ(${prof / 2}px)">${b}</div>`;
+  const cil = h => `<div class="cil">${h}</div>`;
+
+  /* ESPESSURA POR EMPILHAMENTO (peças finas): n cópias achatadas da silhueta entre as duas tampas, ~1 px uma da outra.
+     Vistas de lado formam uma borda contínua e custam n planos, contra dezenas de lascas (no iPhone, 540 lascas derrubaram o
+     scroll a 6 fps). Só a silhueta, sem detalhe; o detalhe fica nas duas tampas. */
+  const pilha = (prof, n, svg) => Array.from({ length: n }, (_, k) =>
+    `<div class="meio" style="transform:translateZ(${+(-prof / 2 + (k + 1) * prof / (n + 1)).toFixed(2)}px)">${svg}</div>`).join('');
+  const disco = (R, prof, n, borda, f, b, extra = '') => {
+    const t = 2 * Math.ceil(R) + 2;
+    return { t, html: pilha(prof, n, S(t, `<circle r="${R + .3}" fill="${borda}"/>`)) + (extra ? `<div class="cil interno">${extra}</div>` : '') + tampas(prof, f, b) };
+  };
+  const anel = (Re, Ri, fill, t, defs, N, Ni, extra = '') => S(t, `${defs}<path d="${poli(Re, N)}${poli(Ri, Ni)}" fill-rule="evenodd" fill="${fill}"/>${extra}`);
+  /* tubo: parede externa, parede interna e as duas bordas em anel (a espessura da parede é Re - Ri) */
+  function tubo(Re, Ri, prof, N, mExt, mInt, fill, defs = '', extraTras = '', Ni = N) {
+    const t = 2 * Math.ceil(Re) + 2, a = anel(Re + .5, Ri - .5, fill, t, defs, N, Ni), b = extraTras ? anel(Re + .5, Ri - .5, fill, t, defs, N, Ni, extraTras) : a;
+    return { t, html: cil(casco(Re, prof, N, mExt) + casco(Ri, prof, Ni, mInt, { dentro: true })) + tampas(prof, a, b) };
+  }
+
+  /* ================= PALETA (mesmos valores do :root) ================= */
+  const C = { ferro: '#1d2024', esmalte: '#efece3', esmalteE: '#d5d1c4', niquel: '#b9bfc6', laton: '#b88a3c', latao2: '#8a6428', galv: '#8a9096', sinal: '#c4291f', aco: '#aab0b8' };
+  const FONTE = `font-family="Barlow Semi Condensed, Arial Narrow, Arial, sans-serif"`;
+  const parafuso = (x, y, r, rot) => `<g transform="translate(${x} ${y}) rotate(${rot})"><circle r="${r}" fill="${C.aco}" stroke="#0b0d10" stroke-width="1"/><rect x="${-r * .75}" y="-1.1" width="${r * 1.5}" height="2.2" fill="#0b0d10"/></g>`;
+
+  /* ================= AS PEÇAS ================= */
+  function mostrador() {
+    let s = `<circle r="148" fill="${C.esmalte}"/><circle r="146" fill="none" stroke="${C.esmalteE}" stroke-width="2"/>`;
+    for (let i = 0; i < 60; i++) {
+      const g = i % 5 === 0, a = i * 6 - 90, [x1, y1] = pol(g ? 120 : 130, a), [x2, y2] = pol(140, a);
+      s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C.ferro}" stroke-width="${g ? 4.2 : 1.6}"/>`;
+    }
+    for (let n = 1; n <= 12; n++) {
+      const [x, y] = pol(92, n * 30 - 90);
+      s += `<text x="${x}" y="${y}" dy=".35em" text-anchor="middle" font-size="32" font-weight="600" ${FONTE} fill="${C.ferro}">${n}</text>`;
+    }
+    s += `<text y="-46" text-anchor="middle" font-size="13" font-weight="600" letter-spacing="5" ${FONTE} fill="${C.ferro}">REGULADOR</text>` +
+         `<text y="-31" text-anchor="middle" font-size="9" font-weight="500" letter-spacing="3" ${FONTE} fill="${C.ferro}">Nº 214</text>` +
+         `<text y="62" text-anchor="middle" font-size="9" font-weight="500" letter-spacing="3" ${FONTE} fill="${C.ferro}">CORDA 8 DIAS</text>`;
+    return S(296, s);
+  }
+
+  /* engrenagem: dentes em polígono (o mesmo contorno vira a tampa e as laterais); fase phi = ângulo do centro de um dente.
+     Engrenam de verdade: onde uma tem dente, a vizinha tem vão (fases calculadas logo abaixo). */
+  function engrenagem(N, pr, m, phi, borda, fill, furos, prof) {
+    const tip = pr + m, root = pr - 1.25 * m, P = 360 / N, pts = [];
+    for (let i = 0; i < N; i++) { const c = phi + i * P; pts.push(pol(root, c - .25 * P), pol(tip, c - .11 * P), pol(tip, c + .11 * P), pol(root, c + .25 * P)); }
+    let d = caminho(pts) + circ(0, 0, root * .2);
+    for (let k = 0; k < furos; k++) {
+      const [x, y] = pol(root * .58, phi + (k + .5) * 360 / furos);
+      d += circ(x, y, root * .22);
+    }
+    const t = 2 * Math.ceil(tip + 3), a = S(t, `<path d="${d}" fill-rule="evenodd" fill="${fill}" stroke="#0b0d10" stroke-width="1.1" stroke-linejoin="round"/><circle r="${root * .86}" fill="none" stroke="#0b0d10" stroke-opacity=".3"/>`);
+    return { t, html: pilha(prof, 4, S(t, `<path d="${d}" fill-rule="evenodd" fill="${borda}" stroke="${borda}" stroke-width="1.1" stroke-linejoin="round"/>`)) + tampas(prof, a, a) };
+  }
+  const MOD = 5.5, NC = 20, NA = 12, NB = 14, PG = 6;
+  const prC = NC * MOD / 2, prA = NA * MOD / 2, prB = NB * MOD / 2;
+  const angA = 150, angB = 33;
+  const phC = angA, phA = angA + 180 - 180 / NA, phB = angB + 180;
+  const posA = pol(prC + prA, angA), posB = pol(prC + prB, angB);
+
+  /* mão: contorno(s) extrudados; boss = disco do eixo */
+  function mao(t, contornos, fill, borda, prof, n) {
+    const pts = contornos.map(orienta);
+    const a = S(t, pts.map(p => `<path d="${caminho(p)}" fill="${fill}"/>`).join(''));
+    return { t, html: pilha(prof, n, S(t, pts.map(p => `<path d="${caminho(p)}" fill="${borda}"/>`).join(''))) + tampas(prof, a, a) };
+  }
+  const espada = (ponta, largo, cintura, base, larg) => [[0, -ponta], [largo, -ponta + 22], [cintura, -ponta + 32], [larg, base], [-larg, base], [-cintura, -ponta + 32], [-largo, -ponta + 22]];
+
+  const PECAS = {
+    tampa: disco(152.5, 6, 4, '#7d838a',
+      S(308, `<circle r="152.5" fill="#33383e"/><path d="${circ(0, 0, 147)}${circ(0, 0, 138)}" fill-rule="evenodd" fill="#15171a"/>` +   // gaxeta de borracha
+        [45, 135, 225, 315].map(a => { const [x, y] = pol(124, a); return `<circle cx="${x}" cy="${y}" r="10" fill="#4a5058" stroke="#15171a" stroke-width="1.5"/>` + parafuso(x, y, 5, a); }).join('') +
+        `<rect x="-14" y="-14" width="28" height="28" fill="#4a5058" stroke="#15171a" stroke-width="1.5" transform="rotate(45)"/><circle r="7" fill="#15171a"/>`),
+      S(308, `<defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a4a9af"/><stop offset="1" stop-color="#70767d"/></linearGradient></defs>` +
+        `<circle r="152.5" fill="url(#gv)"/><circle r="146" fill="none" stroke="#5d636a" stroke-width="1.5"/>` +
+        `<circle cy="-106" r="11" fill="#15171a"/><rect x="-5" y="-106" width="10" height="26" fill="#15171a"/>` +
+        `<rect x="-11" y="-11" width="22" height="22" fill="#5d636a" stroke="#15171a" stroke-width="1.5" transform="rotate(45)"/>` +
+        `<text y="30" text-anchor="middle" font-size="10" font-weight="600" textLength="34" lengthAdjust="spacing" ${FONTE} fill="#2a2e33">CORDA</text>` +
+        /* plaqueta: textLength trava a largura do texto, então ele cabe na caixa com qualquer fonte de reserva */
+        `<rect x="-76" y="54" width="152" height="50" rx="4" fill="#c7cbd0" stroke="#5d636a" stroke-width="1.5"/>` +
+        `<text x="0" y="75" text-anchor="middle" font-size="12" font-weight="600" textLength="124" lengthAdjust="spacing" ${FONTE} fill="#2a2e33">REGULADOR Nº 214</text>` +
+        `<text x="0" y="92" text-anchor="middle" font-size="9" font-weight="500" textLength="92" lengthAdjust="spacing" ${FONTE} fill="#2a2e33">CORDA 8 DIAS</text>` +
+        [45, 135, 225, 315].map(a => { const [x, y] = pol(126, a); return parafuso(x, y, 6, a); }).join(''))),
+    caixa: tubo(160, 153, 44, 40, M.ferro, { ...M.ferro, lum: 8, amp: 4 }, '#2a2e33', '', '', 32),
+    platina: disco(150, 4, 3, '#8f6a2a',
+      S(300, `<defs><pattern id="pe" width="11" height="11" patternUnits="userSpaceOnUse"><circle cx="5.5" cy="5.5" r="5" fill="none" stroke="#000" stroke-opacity=".22"/></pattern></defs>` +
+        `<circle r="150" fill="${C.laton}"/><circle r="150" fill="url(#pe)"/><circle r="134" fill="none" stroke="#000" stroke-opacity=".3" stroke-width="1.5"/>` +
+        [45, 135, 225, 315].map(a => { const [x, y] = pol(124, a); return parafuso(x, y, 7, a + 20); }).join('') +
+        `<circle r="15" fill="${C.latao2}" stroke="#0b0d10" stroke-width="1.5"/><circle r="5" fill="#0b0d10"/>`),
+      S(300, `<defs><pattern id="pe2" width="11" height="11" patternUnits="userSpaceOnUse"><circle cx="5.5" cy="5.5" r="5" fill="none" stroke="#000" stroke-opacity=".25"/></pattern></defs>` +
+      `<circle r="150" fill="${C.latao2}"/><circle r="150" fill="url(#pe2)"/>` +
+      /* duas pontes em arco, o barrilete da mola no centro (com o quadrado da corda) e as cabeças dos pilares */
+      `<path d="M-96,-58A112,112 0 0 1 96,-58" fill="none" stroke="#0b0d10" stroke-width="34" stroke-linecap="round"/><path d="M-96,-58A112,112 0 0 1 96,-58" fill="none" stroke="${C.laton}" stroke-width="30" stroke-linecap="round"/>` +
+      `<path d="M-96,70A112,112 0 0 0 96,70" fill="none" stroke="#0b0d10" stroke-width="34" stroke-linecap="round"/><path d="M-96,70A112,112 0 0 0 96,70" fill="none" stroke="${C.laton}" stroke-width="30" stroke-linecap="round"/>` +
+      `<circle r="46" fill="${C.laton}" stroke="#0b0d10" stroke-width="2"/><circle r="36" fill="none" stroke="#0b0d10" stroke-opacity=".4" stroke-width="1.5"/><rect x="-9" y="-9" width="18" height="18" fill="#0b0d10" transform="rotate(45)"/>` +
+      [45, 135, 225, 315].map(a => { const [x, y] = pol(124, a); return `<circle cx="${x}" cy="${y}" r="10" fill="${C.laton}" stroke="#0b0d10" stroke-width="1.5"/>` + parafuso(x, y, 5, a); }).join('') +
+      [[-84, -60], [84, -60], [-84, 72], [84, 72]].map(([x, y]) => parafuso(x, y, 6, x + y)).join('') +
+      `<text y="122" text-anchor="middle" font-size="8.5" font-weight="500" textLength="96" lengthAdjust="spacing" ${FONTE} fill="#0b0d10">MOVIMENTO Nº 214</text>`)),
+    gC: engrenagem(NC, prC, MOD, phC, '#8f6a2a', C.laton, 5, PG),
+    gA: engrenagem(NA, prA, MOD, phA, '#7d838a', C.aco, 3, PG),
+    gB: engrenagem(NB, prB, MOD, phB, '#7d838a', C.aco, 4, PG),
+    mostrador: disco(148, 3, 2, '#cfc8b6', mostrador(),
+      S(300, `<circle r="148" fill="#c9bfa8"/><circle r="140" fill="none" stroke="#a99f86" stroke-width="1.5"/>` +   // verso da porcelana: biscoito sem esmalte
+        [-112, 112].map(y => `<circle cy="${y}" r="8" fill="none" stroke="#a99f86" stroke-width="1.5"/>`).join('') +
+        `<rect x="-46" y="-19" width="92" height="38" fill="none" stroke="#3a3f38" stroke-width="1.5"/>` +
+        `<text y="-3" text-anchor="middle" font-size="9" font-weight="600" textLength="76" lengthAdjust="spacing" ${FONTE} fill="#3a3f38">PORCELANA ESMALTADA</text>` +
+        `<text y="11" text-anchor="middle" font-size="9" font-weight="500" textLength="58" lengthAdjust="spacing" ${FONTE} fill="#3a3f38">LOTE 214-09</text>`),
+      pe(0, -112, -5.5, 3.5, 8, M.aco) + pe(0, 112, -5.5, 3.5, 8, M.aco)),   // os dois pés que prendem o mostrador à platina
+    horas:    mao(176, [espada(84, 10, 3.5, 16, 4), circulo(0, 0, 8)], C.ferro, '#0f1113', 2.4, 2),
+    minutos:  mao(250, [espada(122, 8, 3, 18, 3.6), circulo(0, 0, 7)], C.ferro, '#0f1113', 2.4, 2),
+    segundos: mao(280, [[[-1.1, -130], [1.1, -130], [1.1, 14], [3, 14], [3, 42], [-3, 42], [-3, 14], [-1.1, 14]], circulo(0, -96, 7), circulo(0, 0, 6)], C.sinal, '#8f1d15', 1.6, 1),
+    pino: disco(10, 5, 3, '#8f6a2a',
+      S(24, `<circle r="10" fill="${C.laton}"/><circle r="9.5" fill="none" stroke="#0b0d10" stroke-width="1"/><circle r="6" fill="none" stroke="${C.latao2}" stroke-width="1.5"/><circle r="2.5" fill="#0b0d10"/>`),
+      S(24, `<circle r="10" fill="${C.latao2}"/>`)),
+    bisel: tubo(162.5, 148, 10, 40, M.niquel, { ...M.niquel, lum: 44, amp: 18 },
+      'url(#bs)', `<defs><linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f4f8"/><stop offset=".45" stop-color="#8f96a3"/><stop offset=".7" stop-color="#dfe3ea"/><stop offset="1" stop-color="#7a818e"/></linearGradient></defs>`,
+      `<path d="${poli(152, 40)}${poli(148, 32)}" fill-rule="evenodd" fill="#15171a"/>`, 32),   // verso: gaxeta preta onde o vidro assenta
+    vidro: disco(147.5, 4, 3, 'rgba(159,200,192,.16)',
+      S(300, `<defs><radialGradient id="vg"><stop offset=".6" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#9fc8c0" stop-opacity=".22"/></radialGradient></defs>` +
+        `<circle r="147.5" fill="url(#vg)"/><circle r="146.5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>` +
+        `<path d="M-118,-48A127,127 0 0 1 -48,-118A145,145 0 0 0 -118,-48Z" fill="#fff" fill-opacity=".35"/>` +
+        `<path d="M-132,-12A134,134 0 0 1 -122,-36" stroke="#fff" stroke-opacity=".3" stroke-width="3" fill="none" stroke-linecap="round"/>`),
+      S(300, `<circle r="147.5" fill="#9fc8c0" fill-opacity=".1"/><circle r="146.5" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="2"/>`)),
+  };
+
+  const INTERNAS = new Set(['tampa', 'platina', 'gC', 'gA', 'gB']);
+  const raiz = document.getElementById('relogio'), els = {};
+  for (const [nome, p] of Object.entries(PECAS)) {
+    const d = document.createElement('div');
+    d.className = INTERNAS.has(nome) ? 'peca interno' : 'peca'; d.dataset.p = nome; d.style.cssText = `--w:${p.t}px;--h:${p.t}px`;
+    d.innerHTML = p.html;
+    raiz.appendChild(d); els[nome] = d;
+  }
+
+  /* ================= TABELA DE PEÇAS ================= */
+  const base = { x: 0, y: 0, z: 0, rotationX: 0, rotationY: 0, rotationZ: 0 };
+  /* m = montada, e = explodida, d = à deriva; viagem m → e → d → m.
+     'r' (opcional) = giro da peça: um tween só de m.rotationZ até r durante TODO o percurso, para nunca frear entre fases.
+     r - m é múltiplo de 360, então a pose final é idêntica à inicial. Hora: 10:10:35 → horas -60°, minutos 60°, segundos 210°.
+     z montado = centro da espessura de cada peça: tampa -19, platina -12, engrenagens -6, mostrador 0, ponteiros 4/7/10, pino 13, bisel 17, vidro 18. */
+  const partes = {
+    tampa:     { m: { z: -19 },                      e: { z: -330 }, d: { y: 24 },  ordem: 0 },
+    caixa:     { m: { z: 0 },                        e: { z: -225 }, d: { y: -24 }, ordem: 1 },
+    platina:   { m: { z: -12 },                      e: { z: -140 }, d: { y: 24 },  ordem: 2 },
+    gC:        { m: { z: -6 },                       e: { z: -85 },  d: { y: 215 }, ordem: 3, r: 720 },
+    gA:        { m: { x: posA[0], y: posA[1], z: -6 }, e: { z: -70 }, d: { x: -190, y: 40 }, ordem: 3, r: -1080 },
+    gB:        { m: { x: posB[0], y: posB[1], z: -6 }, e: { z: -100 }, d: { x: 190, y: 30 }, ordem: 3, r: -720 },
+    mostrador: { m: { z: 0 },                        e: { z: -10 },  d: { y: 24 },  ordem: 4, r: -360 },
+    horas:     { m: { z: 4, rotationZ: -60 },        e: { z: 55 },   d: { y: -24 }, ordem: 5, r: 300 },
+    minutos:   { m: { z: 7, rotationZ: 60 },         e: { z: 90 },   d: { y: -24 }, ordem: 6, r: 1140 },
+    segundos:  { m: { z: 10, rotationZ: 210 },       e: { z: 125 },  d: { y: -24 }, ordem: 7, r: 2370 },
+    pino:      { m: { z: 13 },                       e: { z: 160 },  d: { y: -24 }, ordem: 8 },
+    bisel:     { m: { z: 17 },                       e: { z: 235 },  d: { y: 24 },  ordem: 9 },
+    vidro:     { m: { z: 18 },                       e: { z: 320 },  d: { y: -24 }, ordem: 10 },
+  };
+  const ordemMax = 10;
+  const sem = o => { const { rotationZ, ...r } = o; return r; };   // tira rotationZ dos tweens das peças que giram
+
+  const relogio = raiz;
+  const INCL_INI = { rotationY: -24, rotationX: 10 };
+  const INCL_E   = { rotationY: -42, rotationX: 14 };
+  const INCL_D   = { rotationY: 10,  rotationX: 22 };
+  const GIRO     = { rotationY: 10 + 360 };
+  const INCL_FIM = { rotationY: 24 + 360, rotationX: 10 };
+  gsap.set(relogio, INCL_INI);
+
+  for (const [nome, p] of Object.entries(partes)) {
+    p.m = { ...base, ...p.m };
+    p.e = { ...p.m, ...p.e };
+    p.d = { ...p.e, ...p.d };   // d sobrescreve: x,y de d são absolutos
+    gsap.set(els[nome], p.m);
+  }
+
+  const escala = document.querySelector('.escala'), zoomEl = document.getElementById('zoom'), palco = document.querySelector('.palco'), pista = document.getElementById('pista');
+  /* montado o relógio aparece maior (GRANDE, no .zoom); ao explodir volta a 1 para caber todas as camadas.
+     A escala de ajuste à tela (.escala) é refeita sempre que o tamanho muda: no Chrome do PC o quadro do Artifact
+     muda de tamanho depois do carregamento (o relógio nascia minúsculo no fundo), e a animação não mexe nessa escala. */
+  const fit = () => {
+    const w = innerWidth || document.documentElement.clientWidth, h = innerHeight || document.documentElement.clientHeight;
+    return Math.max(0.3, Math.min(w / 720, h / 780, 1.2));
+  };
+  const GRANDE = 1.3, Z_CAM = 1800 * (1 - 1 / GRANDE);
+
+  const inicio = document.getElementById('inicio'), dica = document.getElementById('dica');
+  inicio.addEventListener('pointerup', () => { inicio.hidden = true; dica.hidden = false; }, { once: true });
+
+  /* ---- chaves de diagnóstico: cada botão troca UMA suspeita de lentidão, ao vivo ----
+     zoom: 'escala' (scale animado), 'z' (câmera se aproxima), 'nenhum'   suav: suavização do scrub (0 = colado no dedo)
+     pin: 'pin' (ScrollTrigger prende o palco) ou 'sticky' (CSS nativo)   norm: normalizeScroll do GSAP (ajuda no iOS) */
+  const estado = { zoom: 'escala', suav: 0.6, pin: 'pin', norm: false, vidro: true, lascas: true };
+  let tl = null, nRefresh = 0, nResize = 0, nScroll = 0, nUpd = 0;
+  ScrollTrigger.addEventListener('refresh', () => nRefresh++);
+  addEventListener('resize', () => nResize++);
+  addEventListener('scroll', () => nScroll++, { passive: true });
+  const ajusta = () => gsap.set(escala, { scale: fit() });
+  ajusta(); addEventListener('resize', ajusta);
+
+  let tMont = null;
+  const ocultaMontado = () => {
+    const t = tl.time(), c = document.body.classList;
+    c.toggle('m-ini', t < tMont.ini); c.toggle('m-fim1', t > tMont.fim);
+  };
+  function monta() {
+    ScrollTrigger.getAll().forEach(t => t.kill(true));
+    if (tl) tl.kill();
+    const sticky = estado.pin === 'sticky';
+    palco.style.position = sticky ? 'sticky' : ''; palco.style.top = sticky ? '0' : '';
+    pista.style.height = sticky ? `${innerHeight * 8.3}px` : '';
+    scrollTo(0, 0);
+    gsap.set(relogio, { ...INCL_INI, z: estado.zoom === 'z' ? Z_CAM : 0 });
+    Object.entries(partes).forEach(([n, p]) => gsap.set(els[n], p.m));
+    ajusta(); gsap.set(zoomEl, { scale: estado.zoom === 'escala' ? GRANDE : 1 });
+    els.vidro.style.display = estado.vidro ? '' : 'none';
+    document.body.classList.toggle('semlascas', !estado.lascas);
+    ScrollTrigger.normalizeScroll(estado.norm);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    tl = gsap.timeline({
+      defaults: { ease: 'power3.inOut' },
+      onUpdate: () => { nUpd++; ocultaMontado(); },
+      scrollTrigger: {
+        ...(sticky ? { trigger: pista, start: 'top top', end: 'bottom bottom' } : { trigger: palco, start: 'top top', end: '+=730%', pin: true }),
+        scrub: estado.suav === 0 ? true : estado.suav,
+      },
+    });
+    tl.to({}, { duration: 0.6 });
+    tl.addLabel('explode');
+    const T_GIRO = 4.0;
+    const T_EXPLODE = 2.6, T_CAMERA = T_EXPLODE + 1.6, FIM_DERIVA = T_CAMERA + T_GIRO;
+    Object.entries(partes).forEach(([n, p]) => {
+      const gira = p.r !== undefined, f = o => gira ? sem(o) : o;
+      const iniE = 0.12 * (ordemMax - p.ordem), iniD = iniE + 2, iniR = FIM_DERIVA + 0.12 * p.ordem;
+      tl.to(els[n], { ...f(p.e), duration: 2 }, `explode+=${iniE}`);
+      tl.to(els[n], { ...f(p.d), duration: iniR - iniD, ease: 'sine.inOut' }, `explode+=${iniD}`);
+      tl.to(els[n], { ...f(p.m), duration: 2 }, `explode+=${iniR}`);
+      if (gira) tl.to(els[n], { rotationZ: p.r, duration: iniR + 2 - iniE, ease: 'power1.inOut' }, `explode+=${iniE}`);
+    });
+    if (estado.zoom === 'escala') {
+      tl.to(zoomEl, { scale: 1, duration: T_EXPLODE }, 'explode');
+      tl.to(zoomEl, { scale: GRANDE, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    } else if (estado.zoom === 'z') {
+      tl.to(relogio, { z: 0, duration: T_EXPLODE }, 'explode');
+      tl.to(relogio, { z: Z_CAM, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    }
+    tl.to(relogio, { ...INCL_E, duration: T_EXPLODE }, 'explode');
+    tl.to(relogio, { ...INCL_D, duration: T_CAMERA - T_EXPLODE, ease: 'sine.inOut' }, `explode+=${T_EXPLODE}`);
+    tl.to(relogio, { ...GIRO, duration: FIM_DERIVA - T_CAMERA, ease: 'power2.inOut' }, `explode+=${T_CAMERA}`);
+    tl.to(relogio, { ...INCL_FIM, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    tl.to({}, { duration: 0.6 });
+    /* instantes em que as peças internas (tampa, platina, engrenagens) ainda não saíram ou já voltaram e o mostrador as cobre */
+    tMont = { ini: 0.55, fim: FIM_DERIVA + 0.12 * partes.mostrador.ordem + 2 + 0.05 };
+    ocultaMontado();
+    ScrollTrigger.refresh();
+  }
+  /* o tamanho real do palco chegou (ou mudou): refaz o ajuste na hora e as posições do scroll logo depois */
+  let rt = 0;
+  new ResizeObserver(() => { ajusta(); clearTimeout(rt); rt = setTimeout(() => ScrollTrigger.refresh(), 150); }).observe(palco);
+
+  /* ---- painel: rótulos e cliques ---- */
+  const ciclo = (lista, v) => lista[(lista.indexOf(v) + 1) % lista.length];
+  const $ = id => document.getElementById(id);
+  const rotulo = () => {
+    $('c-zoom').textContent = 'zoom: ' + { escala: 'escala', z: 'câmera z', nenhum: 'nenhum' }[estado.zoom];
+    $('c-suav').textContent = 'suavização: ' + (estado.suav === 0 ? 'nenhuma' : estado.suav + 's');
+    $('c-pin').textContent = 'prender: ' + (estado.pin === 'pin' ? 'GSAP' : 'sticky');
+    $('c-norm').textContent = 'normalizar scroll: ' + (estado.norm ? 'sim' : 'não');
+    $('c-vidro').textContent = 'vidro: ' + (estado.vidro ? 'sim' : 'não');
+    $('c-lascas').textContent = 'laterais: ' + (estado.lascas ? 'sim' : 'não');
+    $('c-zoom').classList.toggle('lig', estado.zoom !== 'escala'); $('c-suav').classList.toggle('lig', estado.suav !== 0.6);
+    $('c-pin').classList.toggle('lig', estado.pin !== 'pin'); $('c-norm').classList.toggle('lig', estado.norm);
+    $('c-vidro').classList.toggle('lig', !estado.vidro); $('c-lascas').classList.toggle('lig', !estado.lascas);
+  };
+  const liga = (id, fn) => { $(id).onclick = () => { fn(); rotulo(); monta(); }; };
+  liga('c-zoom', () => estado.zoom = ciclo(['escala', 'z', 'nenhum'], estado.zoom));
+  liga('c-suav', () => estado.suav = ciclo([0.6, 0.2, 0], estado.suav));
+  liga('c-pin', () => estado.pin = ciclo(['pin', 'sticky'], estado.pin));
+  liga('c-norm', () => estado.norm = !estado.norm);
+  liga('c-vidro', () => estado.vidro = !estado.vidro);
+  liga('c-lascas', () => estado.lascas = !estado.lascas);
+
+  /* ---- medidor: fps dos quadros, o PIOR dos últimos 3 s, e quantas vezes por segundo a cena foi atualizada ---- */
+  if (location.hash === '#sem-fps') $('hud').hidden = true;
+  const amostras = []; let n = 0, t0 = performance.now();
+  const laco = t => {
+    n++;
+    if (t - t0 >= 500) {
+      const seg = (t - t0) / 1000, fps = n / seg;
+      amostras.push(fps); if (amostras.length > 6) amostras.shift();
+      $('hud-fps').textContent = Math.round(fps) + ' fps · pior 3s: ' + Math.round(Math.min(...amostras));
+      $('hud-info').textContent = `cena ${tl ? tl.time().toFixed(1) + '/' + tl.duration().toFixed(1) : '-'} · atualiz ${Math.round(nUpd / seg)}/s · scroll ${Math.round(nScroll / seg)}/s · refresh ${nRefresh} · resize ${nResize}\n` +
+        `tela ${innerWidth}x${innerHeight} · ajuste ${(+gsap.getProperty(escala, 'scale')).toFixed(2)} · zoom ${(+gsap.getProperty(zoomEl, 'scale')).toFixed(2)}`;
+      n = 0; nUpd = 0; nScroll = 0; t0 = t;
+    }
+    requestAnimationFrame(laco);
+  };
+  requestAnimationFrame(laco);
+  $('hud-info').style.whiteSpace = 'pre-line';
+
+  rotulo(); monta();
+</script>
+  /* ===== SONDA: refaz a cena com uma configuração, roda um trecho em vai-e-volta e mede o fps ===== */
+  const escala = document.querySelector('.escala');
+  const fit = () => Math.min(innerWidth / 720, innerHeight / 780, 1.2), GRANDE = 1.3, Z_CAM = 1800 * (1 - 1 / GRANDE);
+  const ehTubo = n => n === 'caixa' || n === 'bisel';
+  const CONFIGS = [
+    { nome: 'A  como está (escala animada)', escala: 'anim', trecho: [0, 3.2] },
+    { nome: 'B  escala fixa (não anima)', escala: 'fixa', trecho: [0, 3.2] },
+    { nome: 'C  zoom pela câmera (z), sem escala', escala: 'z', trecho: [0, 3.2] },
+    { nome: 'D  como A, sem vidro', escala: 'anim', trecho: [0, 3.2], oculta: ['vidro'] },
+    { nome: 'E  como A, sem caixa e bisel', escala: 'anim', trecho: [0, 3.2], oculta: ['caixa', 'bisel'] },
+    { nome: 'F  como A, sem engrenagens', escala: 'anim', trecho: [0, 3.2], oculta: ['gC', 'gA', 'gB'] },
+    { nome: 'G  como A, sem laterais (só tampas)', escala: 'anim', trecho: [0, 3.2], semLascas: true },
+    { nome: 'H  como A, trecho do meio (controle)', escala: 'anim', trecho: [5, 8] },
+  ];
+  let tl = null, ativa = null;
+
+  function monta(cfg) {
+    if (tl) tl.kill();
+    ativa = cfg;
+    Object.entries(partes).forEach(([n, p]) => { gsap.set(els[n], p.m); els[n].style.display = (cfg.oculta || []).includes(n) ? 'none' : ''; });
+    document.body.classList.toggle('semlascas', !!cfg.semLascas);
+    gsap.set(relogio, { ...INCL_INI, z: cfg.escala === 'z' ? Z_CAM : 0 });
+    gsap.set(escala, { scale: cfg.escala === 'z' ? fit() : fit() * GRANDE });
+    tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.inOut' } });
+    tl.to({}, { duration: 0.6 });
+    tl.addLabel('explode');
+    const T_GIRO = 4.0, T_EXPLODE = 2.6, T_CAMERA = T_EXPLODE + 1.6, FIM_DERIVA = T_CAMERA + T_GIRO;
+    Object.entries(partes).forEach(([n, p]) => {
+      const gira = p.r !== undefined, f = o => gira ? sem(o) : o;
+      const iniE = 0.12 * (ordemMax - p.ordem), iniD = iniE + 2, iniR = FIM_DERIVA + 0.12 * p.ordem;
+      tl.to(els[n], { ...f(p.e), duration: 2 }, `explode+=${iniE}`);
+      tl.to(els[n], { ...f(p.d), duration: iniR - iniD, ease: 'sine.inOut' }, `explode+=${iniD}`);
+      tl.to(els[n], { ...f(p.m), duration: 2 }, `explode+=${iniR}`);
+      if (gira) tl.to(els[n], { rotationZ: p.r, duration: iniR + 2 - iniE, ease: 'power1.inOut' }, `explode+=${iniE}`);
+    });
+    if (cfg.escala === 'anim') {
+      tl.to(escala, { scale: () => fit(), duration: T_EXPLODE }, 'explode');
+      tl.to(escala, { scale: () => fit() * GRANDE, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    } else if (cfg.escala === 'z') {
+      tl.to(relogio, { z: 0, duration: T_EXPLODE }, 'explode');
+      tl.to(relogio, { z: Z_CAM, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    }
+    tl.to(relogio, { ...INCL_E, duration: T_EXPLODE }, 'explode');
+    tl.to(relogio, { ...INCL_D, duration: T_CAMERA - T_EXPLODE, ease: 'sine.inOut' }, `explode+=${T_EXPLODE}`);
+    tl.to(relogio, { ...GIRO, duration: FIM_DERIVA - T_CAMERA, ease: 'power2.inOut' }, `explode+=${T_CAMERA}`);
+    tl.to(relogio, { ...INCL_FIM, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    tl.to({}, { duration: 0.6 });
+  }
+
+  /* o trecho vai e volta a 1 unidade de timeline por segundo, como um dedo rolando devagar */
+  const tocar = (t0, seg) => { const [a, b] = seg, L = b - a, x = ((performance.now() - t0) / 1000) % (2 * L); tl.time(a + (x < L ? x : 2 * L - x)); };
+
+  const painel = document.getElementById('painel'), res = document.getElementById('res'), ini = document.getElementById('ini');
+  const linhas = [];
+  function roda(cfg) {
+    return new Promise(ok => {
+      monta(cfg);
+      const t0 = performance.now(), dts = []; let ult = 0;
+      const quadro = t => {
+        tocar(t0, cfg.trecho);
+        if (ult && t - t0 > 1200) dts.push(t - ult);   // descarta 1,2 s de aquecimento
+        ult = t;
+        if (t - t0 < 6200) { requestAnimationFrame(quadro); return; }
+        dts.sort((a, b) => a - b);
+        const media = dts.reduce((s, v) => s + v, 0) / dts.length, p95 = dts[Math.floor(dts.length * .95)];
+        ok({ nome: cfg.nome, fps: 1000 / media, pior: 1000 / p95 });
+      };
+      requestAnimationFrame(quadro);
+    });
+  }
+
+  ini.addEventListener('pointerup', async () => {
+    ini.hidden = true; res.textContent = '';
+    for (let i = 0; i < CONFIGS.length; i++) {
+      painel.textContent = `teste ${i + 1} de ${CONFIGS.length}: ${CONFIGS[i].nome}`;
+      const r = await roda(CONFIGS[i]);
+      linhas.push(`${r.nome}\n      ${Math.round(r.fps)} fps em média · ${Math.round(r.pior)} fps no pior 5%`);
+      res.textContent = linhas.join('\n');
+    }
+    painel.textContent = 'pronto: tire um print desta tela e me envie';
+    monta(CONFIGS[0]); tl.time(0);
+  }, { once: true });
+  monta(CONFIGS[0]); tl.time(0);
+
+</script>

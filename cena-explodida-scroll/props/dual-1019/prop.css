@@ -1,0 +1,12 @@
+/* Mundo do objeto: toca-discos trocador Dual 1019 (St. Georgen, Floresta Negra, 1966-69) num gabinete Grundig de teca com tampa de acrílico fumê; alta fidelidade de sala de estar.
+   Materiais: teca envernizada, laminado preto fosco, chapa de aço pintada preto-café, alumínio escovado e fundido, borracha preta, plástico preto, acrílico fumê, aço cromado, latão.
+   Paleta: teca #c57f41 (sombra #ad7354), platina #1f1411, alumínio #cdcdcf / #aeaead, borracha #3b3937, plástico #636365, acrílico fumê #807773; acento único: o azul do selo "S" #2f7fc1.
+   Tipografia e textos: grotesca alemã (Archivo) como as gravações, preta no alumínio e branca no preto: "Dual 1019", "manual · stop · start", 17 · 25 · 30, 16 · 33 · 45 · 78, antiskating 0-6, GRUNDIG. Fundo branco frio das fotos. */
+:root {
+  color-scheme: light;
+  --fundo: #f2f2f4;
+  --tinta: #1f1411;
+  --palco-fundo: radial-gradient(ellipse at 50% 42%, #fbfbfc, #e9e9ec 74%);
+  --inicio-fundo: rgba(242,242,244,.84);
+  --fonte: Archivo, "Helvetica Neue", Arial, sans-serif;
+}

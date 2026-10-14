@@ -1,0 +1,6 @@
+{
+  "css": ["interacao.css"],
+  "html": [],
+  "antes": [],
+  "depois": ["interacao.js"]
+}

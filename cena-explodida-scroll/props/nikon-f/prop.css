@@ -1,0 +1,12 @@
+/* Estilo DESTE prop: Nikon F Photomic, Nippon Kogaku, Tóquio, por volta de 1963; câmera de fotojornalista, usinada.
+   Materiais: latão cromado acetinado, couro sintético granulado preto, alumínio anodizado preto, vidro com tratamento âmbar, espelho, titânio.
+   Paleta: cromo #d9dbdc, sombra do cromo #8e9295, couro #1c1c1d, anodizado #0f1011, titânio #8a877f, âmbar #b4893a; acento só no índice do ASA #c8322a.
+   Tipografia: sans geométrica (Jost, da família da Futura) como as gravações; o "F" é serifado e desenhado à mão. Fundo cinza-claro quente das fotos. */
+:root {
+  color-scheme: light;
+  --fundo: #ecebe8;
+  --tinta: #1c1c1d;
+  --palco-fundo: radial-gradient(ellipse at 50% 40%, #f4f3f0, #e4e3df 72%);
+  --inicio-fundo: rgba(236,235,232,.82);
+  --fonte: Jost, Futura, "Trebuchet MS", Arial, sans-serif;
+}

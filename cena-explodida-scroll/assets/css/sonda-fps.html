@@ -1,0 +1,301 @@
+<title>Sonda do gibi</title>
+<style>
+  /* ---------- paleta única: todas as peças bebem daqui (coesão visual) ---------- */
+  :root {
+    color-scheme: dark;
+    --tinta: #16213a;      /* azul-noite: capa, contornos */
+    --papel: #f3ebd6;      /* papel do miolo */
+    --papel-escuro: #d8cdb0;
+    --vermelho: #e0404a;
+    --amarelo: #f4b942;
+    --aco: #b9bec7;        /* grampos */
+    --fundo: #0d121c;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--fundo); color: var(--papel); font-family: system-ui, sans-serif; }
+
+  /* palco: a seção que fica "presa" na tela enquanto o scroll roda a timeline */
+  .palco {
+    height: 100vh; height: 100svh; overflow: hidden;
+    display: grid; place-items: center;
+    perspective: 1800px;                 /* a perspectiva vive no pai da cena 3D */
+    background: var(--fundo);
+  }
+  .escala { transform-style: preserve-3d; } /* o JS ajusta a escala conforme a tela */
+  .gibi { position: relative; width: 0; height: 0; transform-style: preserve-3d; }
+
+  /* cada peça é um plano 3D centrado na origem do .gibi.
+     --w e --h definem o tamanho; a margem negativa centra a peça sem usar %
+     (assim o GSAP só mexe em x/y/z/rotação, sem misturar unidades). */
+  .peca {
+    position: absolute; left: 0; top: 0;
+    width: var(--w); height: var(--h);
+    margin: calc(var(--h) / -2) 0 0 calc(var(--w) / -2);
+    transform-style: preserve-3d;
+  }
+  /* frente (.f) e verso (.b) de uma folha; o verso nunca aparece espelhado */
+  .f, .b { position: absolute; inset: 0; backface-visibility: hidden; }
+  .b { transform: rotateY(180deg); }
+
+  /* ---------- CAPA ---------- */
+  .capa .f {
+    background:
+      radial-gradient(circle at 50% 54%, transparent 0 46px, var(--vermelho) 47px 60px, transparent 61px),
+      radial-gradient(circle at 50% 54%, var(--amarelo) 0 38px, transparent 39px),
+      radial-gradient(circle, rgba(224,64,74,.35) 1.4px, transparent 1.8px) 0 0 / 9px 9px,
+      var(--tinta);
+    border: 6px solid var(--papel);
+    outline: 2px solid var(--tinta); outline-offset: -8px;
+  }
+  .capa .topo { position: absolute; left: 14px; right: 14px; top: 14px; display: flex; justify-content: space-between;
+    font: 700 11px/1 ui-monospace, monospace; letter-spacing: .12em; color: var(--papel); text-transform: uppercase; }
+  .capa .titulo { position: absolute; left: 14px; right: 14px; bottom: 54px;
+    font: 900 40px/0.92 "Arial Black", Impact, sans-serif; color: var(--papel); letter-spacing: -.01em;
+    text-shadow: 3px 3px 0 var(--vermelho); }
+  .capa .faixa { position: absolute; left: 0; right: 0; bottom: 14px; padding: 6px 14px;
+    background: var(--amarelo); color: var(--tinta);
+    font: 800 11px/1 ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; }
+  .capa .b, .contra .f { background: var(--papel); border: 6px solid var(--papel-escuro); }
+
+  /* ---------- MIOLO: 3 folhas, cada uma com quadros diferentes ---------- */
+  .folha .f, .folha .b { background: var(--papel); }
+  .folha .f { display: grid; gap: 6px; padding: 10px; }
+  .folha .b { border: 10px solid var(--papel); background: var(--papel-escuro); opacity: .9; }
+  .q { border: 2px solid var(--tinta); background: var(--tinta); position: relative; overflow: hidden; }
+  .q::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle, rgba(244,185,66,.45) 1.3px, transparent 1.7px) 0 0 / 8px 8px; }
+  .q.v { background: var(--vermelho); } .q.a { background: var(--amarelo); } .q.p { background: var(--papel-escuro); }
+  .s1 .f { grid-template: 1.2fr 1fr / 1fr 1fr; } .s1 .q:first-child { grid-column: 1 / 3; }
+  .s2 .f { grid-template: 1fr 1fr 1fr / 1fr 1.4fr; } .s2 .q:nth-child(3) { grid-row: 2 / 4; }
+  .s3 .f { grid-template: 1fr 1.6fr / 1fr 1fr 1fr; } .s3 .q:nth-child(4) { grid-column: 1 / 4; }
+
+  /* ---------- CONTRACAPA (verso = face externa, com código de barras) ---------- */
+  .contra .b { background: var(--tinta); border: 6px solid var(--papel); outline: 2px solid var(--tinta); outline-offset: -8px; }
+  .contra .barras { position: absolute; right: 18px; bottom: 18px; width: 70px; height: 44px; background:
+    repeating-linear-gradient(90deg, var(--papel) 0 2px, transparent 2px 4px, var(--papel) 4px 5px, transparent 5px 8px); border: 4px solid var(--papel); }
+
+  /* ---------- LOMBADA E GRAMPOS: as únicas laterais. Bordas do miolo foram descartadas (ficaram feias neste prop) ---------- */
+  /* lombada, grampos e selo têm frente (.f) e verso (.b), ambos com backface-visibility: hidden.
+     Montados, o verso fica voltado para dentro e nunca vaza; soltos no giro de 360°, mostram o verso em vez de sumir. */
+  .lombada .f { background: linear-gradient(90deg, #0f1830, var(--tinta) 40%, #22335a); display: grid; place-items: center; }
+  .lombada .b { background: #0f1830; }
+  .lombada span { writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px/1 ui-monospace, monospace;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--papel); white-space: nowrap; }
+
+  /* ---------- DETALHES ---------- */
+  .grampo .f, .grampo .b { background: linear-gradient(180deg, #e6e9ee, var(--aco) 55%, #8b919c); border-radius: 1px; }
+  .selo .f, .selo .b { background: var(--amarelo); border-radius: 50%; border: 3px solid var(--tinta); }
+  .selo .f { display: grid; place-items: center; font: 900 15px/1 "Arial Black", sans-serif; color: var(--tinta); }
+
+  .dica { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center;
+    font: 600 12px/1 ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; opacity: .55; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) { .dica { display: none; } }
+
+  /* ---------- SONDA: painel de diagnóstico (não faz parte do protótipo final) ---------- */
+  .sonda { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top, 0px); z-index: 10;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 16px;
+    background: rgba(13,18,28,.88); border-bottom: 1px solid #2a3450; }
+  .sonda span { font: 500 11px/1.3 ui-monospace, monospace; color: #aab3c8; flex-basis: 100%; }
+  .sonda b { font: 700 13px/1 ui-monospace, monospace; color: var(--amarelo); min-width: 150px; }
+  .sonda button { font: 600 11px/1 ui-monospace, monospace; color: var(--papel); background: #1b2438;
+    border: 1px solid #3a4666; border-radius: 6px; padding: 10px 14px; min-height: 40px; }
+  .sonda button.lig { background: var(--amarelo); color: var(--tinta); border-color: var(--amarelo); }
+  .will .peca { will-change: transform; }
+  .sofrente .b { display: none; }
+  .semponto .q::after { display: none; }
+  .semponto .capa .f { background: var(--tinta); }
+</style>
+
+<section class="palco">
+  <div class="escala">
+    <div class="gibi">
+      <!-- tamanhos: capa 240x340; miolo 232x332 (a capa "sobra" 4px em cada lado, como num gibi de verdade); espessura total 20 -->
+      <div class="peca contra" data-p="contra" style="--w:240px;--h:340px">
+        <div class="f"></div>
+        <div class="b"><div class="barras"></div></div>
+      </div>
+
+      <div class="peca folha s1" data-p="s1" style="--w:232px;--h:332px">
+        <div class="f"><div class="q a"></div><div class="q v"></div><div class="q"></div></div><div class="b"></div>
+      </div>
+      <div class="peca folha s2" data-p="s2" style="--w:232px;--h:332px">
+        <div class="f"><div class="q"></div><div class="q p"></div><div class="q v"></div><div class="q a"></div></div><div class="b"></div>
+      </div>
+      <div class="peca folha s3" data-p="s3" style="--w:232px;--h:332px">
+        <div class="f"><div class="q p"></div><div class="q"></div><div class="q a"></div><div class="q v"></div></div><div class="b"></div>
+      </div>
+
+      <div class="peca capa" data-p="capa" style="--w:240px;--h:340px">
+        <div class="f">
+          <div class="topo"><span>Nº 1</span><span>Estudo</span></div>
+          <div class="titulo">O<br>ENCAIXE</div>
+          <div class="faixa">Edição de montagem</div>
+        </div>
+        <div class="b"></div>
+      </div>
+
+      <div class="peca selo" data-p="selo" style="--w:56px;--h:56px"><div class="f">#1</div><div class="b"></div></div>
+
+      <div class="peca lombada" data-p="lombada" style="--w:20px;--h:340px"><div class="f"><span>O Encaixe · Nº 1</span></div><div class="b"></div></div>
+
+      <div class="peca grampo" data-p="g1" style="--w:14px;--h:4px"><div class="f"></div><div class="b"></div></div>
+      <div class="peca grampo" data-p="g2" style="--w:14px;--h:4px"><div class="f"></div><div class="b"></div></div>
+    </div>
+  </div>
+</section>
+<div class="dica">role para desmontar</div>
+<div class="sonda">
+  <b id="fps">fps …</b>
+  <button id="b-suav"></button>
+  <button id="b-norm"></button>
+  <button id="b-will"></button>
+  <button id="b-frente"></button>
+  <button id="b-ponto"></button>
+  <button id="b-neutro">toque neutro (não faz nada)</button>
+  <span id="diag"></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+  gsap.registerPlugin(ScrollTrigger);
+
+  const W = 240, H = 340;   // capa
+  const LOMBADA_X = 260;    // a lombada vai mais longe: senão a capa (mais perto, logo maior) a esconde
+  const base = { x: 0, y: 0, z: 0, rotationX: 0, rotationY: 0, rotationZ: 0 };
+
+  /* Cada peça tem TRÊS estados:
+     m = montada (as coordenadas exatas do encaixe), e = explodida, d = à deriva.
+     A viagem é m → e → d → m. Como a chegada ao fim é m de novo, os valores finais
+     são literalmente os de partida: o encaixe não pode "desalinhar".
+     e e d herdam do estado anterior (só sobrescrevem o que muda), então nada se perde.
+
+     O MOVIMENTO é uma escolha por prop. Para um gibi, o que combina é folha:
+     abre em leque (e), depois cada folha balança e sobe/desce em sentido alternado
+     enquanto a câmera dá a volta (d). Um prop metálico pediria outra coisa. */
+  const partes = {
+    contra: { m: { z: -10 },        e: { z: -270, rotationZ: -2 },  d: { y: 14,  rotationZ: -4 },             ordem: 0 },
+    s1:     { m: { z: -5 },         e: { z: -150, rotationZ: 3 },   d: { y: -24, rotationZ: 8 },              ordem: 1 },
+    s2:     { m: { z: 0 },          e: { z: -30,  rotationZ: -3 },  d: { y: 24,  rotationZ: -8 },             ordem: 2 },
+    s3:     { m: { z: 5 },          e: { z: 90,   rotationZ: 3 },   d: { y: -24, rotationZ: 8 },              ordem: 3 },
+    capa:   { m: { z: 10 },         e: { z: 210,  rotationZ: -2 },  d: { y: -14, rotationZ: -4 },             ordem: 4 },
+    selo:   { m: { x: 76, y: -112, z: 11 }, e: { z: 300 },          d: { z: 340, rotationZ: -40 },            ordem: 5 },
+    /* lombada: montada é parede de pé; explodida vira de frente (rotação 0),
+       para ser lida como peça com desenho, e não como fiapo visto de perfil */
+    lombada:{ m: { x: -W/2, rotationY: -90 }, e: { x: -W/2 - LOMBADA_X, rotationY: 0 }, d: { y: 30 },         ordem: 1 },
+    // grampos acompanham a lombada: mesma posição x, 4px à frente dela, e a mesma deriva em y
+    g1:     { m: { x: -W/2 - 1, y: -80, rotationY: -90 }, e: { x: -W/2 - LOMBADA_X, z: 4, rotationY: 0 }, d: { y: -50 }, ordem: 5 },
+    g2:     { m: { x: -W/2 - 1, y: 80,  rotationY: -90 }, e: { x: -W/2 - LOMBADA_X, z: 4, rotationY: 0 }, d: { y: 110 }, ordem: 5 },
+  };
+  const ordemMax = 5;
+
+  /* inclinação do conjunto: montado mostra a espessura; explodido abre o ângulo;
+     na deriva a câmera varre para o outro lado (de -42° até +10°), o prop desmontado
+     dá uma volta de 360° e só então se monta, fechando em +24° */
+  const gibi = document.querySelector('.gibi');
+  /* começa inclinado para um lado e termina ESPELHADO: a pose final não precisa repetir a inicial.
+     As peças voltam ao encaixe exato (estado m); só o ângulo da câmera troca de lado.
+     Início mostra a borda direita; o fim mostra a lombada (título e grampos) à esquerda. */
+  const INCL_INI = { rotationY: -24, rotationX: 10 };
+  const INCL_E   = { rotationY: -42, rotationX: 14 };
+  const INCL_D   = { rotationY: 10,  rotationX: 22 };
+  const GIRO     = { rotationY: 10 + 360 };         // uma volta completa com o prop desmontado
+  const INCL_FIM = { rotationY: 24 + 360, rotationX: 10 };  // +24° depois da volta (384° = +24° na tela)
+  gsap.set(gibi, INCL_INI);
+
+  const els = {};
+  for (const [nome, p] of Object.entries(partes)) {
+    p.m = { ...base, ...p.m };
+    p.e = { ...p.m, ...p.e };
+    p.d = { ...p.e, ...p.d };
+    els[nome] = document.querySelector(`[data-p="${nome}"]`);
+    gsap.set(els[nome], p.m);
+  }
+
+  /* a cena cabe em qualquer tela: escala única no contêiner, recalculada ao redimensionar */
+  const escala = document.querySelector('.escala');
+  const ajusta = () => gsap.set(escala, { scale: Math.min(innerWidth / 660, innerHeight / 780, 1.2) });
+  ajusta(); addEventListener('resize', ajusta);
+
+
+  /* ---- a timeline vira uma função, para poder ser refeita ao trocar uma chave ---- */
+  const estado = { suav: 0.6, norm: false, will: false, frente: false, ponto: true };
+  let tl = null;
+  const monta = () => {
+    ScrollTrigger.getAll().forEach(s => s.kill(true));
+    if (tl) tl.kill();
+    gsap.set(gibi, INCL_INI);
+    Object.entries(partes).forEach(([n, p]) => gsap.set(els[n], p.m));
+    scrollTo(0, 0);
+    tl = gsap.timeline({
+      defaults: { ease: 'power3.inOut' },
+      scrollTrigger: { trigger: '.palco', start: 'top top', end: '+=730%', pin: true, scrub: estado.suav === 0 ? true : estado.suav },
+    });
+    tl.to({}, { duration: 0.6 });
+    tl.addLabel('explode');
+    const T_GIRO = 4.0;
+    const T_EXPLODE = 2.6, T_CAMERA = T_EXPLODE + 1.6, FIM_DERIVA = T_CAMERA + T_GIRO;
+    Object.entries(partes).forEach(([n, p]) => {
+      const iniE = 0.12 * (ordemMax - p.ordem);
+      tl.to(els[n], { ...p.e, duration: 2 }, `explode+=${iniE}`);
+      const iniD = iniE + 2, iniR = FIM_DERIVA + 0.12 * p.ordem;
+      tl.to(els[n], { ...p.d, duration: iniR - iniD, ease: 'sine.inOut' }, `explode+=${iniD}`);
+      tl.to(els[n], { ...p.m, duration: 2 }, `explode+=${iniR}`);
+    });
+    tl.to(gibi, { ...INCL_E, duration: T_EXPLODE }, 'explode');
+    tl.to(gibi, { ...INCL_D, duration: T_CAMERA - T_EXPLODE, ease: 'sine.inOut' }, `explode+=${T_EXPLODE}`);
+    tl.to(gibi, { ...GIRO, duration: FIM_DERIVA - T_CAMERA, ease: 'power2.inOut' }, `explode+=${T_CAMERA}`);
+    tl.to(gibi, { ...INCL_FIM, duration: 2.6 }, `explode+=${FIM_DERIVA}`);
+    tl.to({}, { duration: 0.6 });
+    ScrollTrigger.refresh();
+  };
+
+  /* ---- chaves: cada botão muda UMA suspeita e mostra o estado atual ---- */
+  const SUAV = [0.6, 0.2, 0];
+  const rotulo = () => {
+    document.getElementById('b-suav').textContent = 'suavização: ' + (estado.suav === 0 ? 'nenhuma' : estado.suav + 's');
+    document.getElementById('b-norm').textContent = 'normalizar scroll: ' + (estado.norm ? 'sim' : 'não');
+    document.getElementById('b-will').textContent = 'will-change: ' + (estado.will ? 'sim' : 'não');
+    document.getElementById('b-frente').textContent = estado.frente ? 'só frente (9 faces)' : 'frente+verso (18 faces)';
+    document.getElementById('b-ponto').textContent = 'pontilhado: ' + (estado.ponto ? 'sim' : 'não');
+    document.getElementById('b-norm').classList.toggle('lig', estado.norm);
+    document.getElementById('b-will').classList.toggle('lig', estado.will);
+    document.getElementById('b-frente').classList.toggle('lig', estado.frente);
+    document.getElementById('b-ponto').classList.toggle('lig', !estado.ponto);
+    document.getElementById('b-suav').classList.toggle('lig', estado.suav !== 0.6);
+  };
+  document.getElementById('b-suav').onclick = () => { estado.suav = SUAV[(SUAV.indexOf(estado.suav) + 1) % SUAV.length]; monta(); rotulo(); };
+  document.getElementById('b-norm').onclick = () => { estado.norm = !estado.norm; ScrollTrigger.normalizeScroll(estado.norm); rotulo(); };
+  document.getElementById('b-will').onclick = () => { estado.will = !estado.will; document.body.classList.toggle('will', estado.will); rotulo(); };
+  document.getElementById('b-frente').onclick = () => { estado.frente = !estado.frente; document.body.classList.toggle('sofrente', estado.frente); rotulo(); };
+  document.getElementById('b-ponto').onclick = () => { estado.ponto = !estado.ponto; document.body.classList.toggle('semponto', !estado.ponto); rotulo(); };
+
+  /* ---- medidor: fps a cada 0,5 s e o PIOR fps dos últimos 3 s (o que importa ao rolar) ---- */
+  const leitura = document.getElementById('fps');
+  const amostras = [];
+  let n = 0, t0 = performance.now();
+  const laco = t => {
+    n++;
+    if (t - t0 >= 500) {
+      const fps = n * 1000 / (t - t0); n = 0; t0 = t;
+      amostras.push(fps); if (amostras.length > 6) amostras.shift();
+      leitura.textContent = Math.round(fps) + ' fps · mín ' + Math.round(Math.min(...amostras));
+    }
+    requestAnimationFrame(laco);
+  };
+  requestAnimationFrame(laco);
+
+  /* teste da hipótese: o fps muda depois do PRIMEIRO TOQUE, qualquer que seja? O botão neutro não altera nada. */
+  const diag = document.getElementById('diag');
+  const mostraDiag = () => {
+    const ua = navigator.userActivation;
+    diag.textContent = 'ativação: ' + (ua ? (ua.hasBeenActive ? 'sim' : 'não') : '?') + ' · foco: ' + (document.hasFocus() ? 'sim' : 'não') +
+      ' · visível: ' + document.visibilityState + ' · em iframe: ' + (self !== top ? 'sim' : 'não') + ' · dpr ' + devicePixelRatio;
+  };
+  mostraDiag(); setInterval(mostraDiag, 500);
+  document.getElementById('b-neutro').onclick = () => {};
+
+  rotulo();
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) monta();
+</script>

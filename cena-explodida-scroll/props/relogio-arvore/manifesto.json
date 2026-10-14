@@ -1,0 +1,6 @@
+{
+  "titulo": "Relógio em árvore",
+  "herda": "../relogio",
+  "dica": "role para desmontar",
+  "toque": "Toque na tela para começar"
+}

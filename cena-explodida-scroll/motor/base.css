@@ -1,0 +1,26 @@
+/* Motor: layout genérico (palco, tela de um toque, dica, painel de fps). Não define cores nem fonte: elas vêm do CSS do prop,
+   nas variáveis --fundo, --tinta, --fonte, --palco-fundo e --inicio-fundo. */
+* { box-sizing: border-box; margin: 0; }
+html, body { background: var(--fundo); color: var(--tinta); font-family: var(--fonte); }
+
+.palco { position: relative; height: 100vh; height: 100svh; overflow: hidden; background: var(--palco-fundo, var(--fundo)); }
+#c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.dica { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center;
+  font: 600 13px/1 var(--fonte); letter-spacing: .16em; text-transform: uppercase; opacity: .6; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .dica, .inicio { display: none; } }
+
+/* Tela de um toque (iPhone: o frame do Artefato roda a ~30 fps até o primeiro toque). Só o pointerup dispensa. */
+.inicio { position: fixed; inset: 0; z-index: 5; display: grid; place-items: end center; background: none; border: 0;
+  padding: 0 16px calc(18px + env(safe-area-inset-bottom, 0px)); touch-action: pan-y; cursor: pointer;
+  font: 600 13px/1 var(--fonte); letter-spacing: .16em; text-transform: uppercase; color: var(--tinta); }
+.inicio span { padding: 12px 18px; border: 1px solid var(--tinta); border-radius: 999px; background: var(--inicio-fundo, rgba(255,255,255,.7)); }
+
+/* medidor de fps; #sem-fps na URL esconde */
+/* retângulo compacto no canto superior esquerdo: só do tamanho dos dados (antes ia de lado a lado e cobria a cena no PC) */
+.hud { position: fixed; left: 8px; top: calc(8px + env(safe-area-inset-top, 0px)); z-index: 10; width: max-content; max-width: min(340px, calc(100% - 16px)); padding: 5px 7px; border-radius: 6px;
+  background: rgba(29,32,36,.78); color: #efece3; font: 500 10px/1.3 ui-monospace, monospace; white-space: pre-line; }
+.hud b { font-size: 12px; }
+.hud .chaves { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.hud button { font: 600 10px/1 ui-monospace, monospace; color: #efece3; background: #3a3f46; border: 1px solid #5a616b; border-radius: 5px; padding: 5px 7px; min-height: 28px; }
+.hud button.lig { background: #efece3; color: #1d2024; }

@@ -1,0 +1,6 @@
+{
+  "css": ["blueprint.css"],
+  "html": [],
+  "antes": ["linhas.js", "anotacoes.js"],
+  "depois": []
+}

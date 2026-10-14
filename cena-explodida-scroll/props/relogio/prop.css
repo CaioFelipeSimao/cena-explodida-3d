@@ -1,0 +1,13 @@
+/* Estilo DESTE prop (um regulador de oficina, meados do século XX): ferro fundido preto, níquel, latão, aço galvanizado, porcelana;
+   acento só no ponteiro dos segundos. Fundo de bancada clara para a caixa preta aparecer. Cada prop define o seu, nunca herda de outro. */
+:root {
+  color-scheme: light;
+  --fundo: #c3c6bf;
+  --tinta: #1d2024;
+  --esmalte: #efece3;
+  --laton: #b88a3c;
+  --sinal: #c4291f;
+  --palco-fundo: radial-gradient(ellipse at 50% 42%, #d1d4cd, #c3c6bf 70%);
+  --inicio-fundo: rgba(195,198,191,.8);
+  --fonte: BarlowSC, "Arial Narrow", Arial, sans-serif;
+}

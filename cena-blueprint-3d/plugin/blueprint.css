@@ -1,0 +1,13 @@
+/* cena-blueprint-3d: anotações. As cores vêm do tema (--bp-linha, --bp-fundo, definidas pelo plugin); a fonte é a do prop (--fonte). */
+.bp-anot { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.bp-ponto { fill: var(--bp-fundo); stroke: var(--bp-linha); stroke-width: 1.2; }
+.bp-guia, .bp-cota { fill: none; stroke: var(--bp-linha); stroke-width: 1; }
+.bp-texto { fill: var(--bp-linha); font-family: var(--fonte); font-weight: 500; letter-spacing: .04em; dominant-baseline: central; }
+.bp-texto-cota { font-variant-numeric: tabular-nums; }
+.bp-carimbo { position: absolute; right: 16px; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: auto auto;
+  border: 1px solid var(--bp-linha); color: var(--bp-linha); background: var(--bp-fundo); font: 500 10px/1.25 var(--fonte); letter-spacing: .05em;
+  pointer-events: none; opacity: 0; max-width: calc(100% - 32px); }
+.bp-carimbo b { grid-column: 1 / -1; padding: 5px 8px; border-bottom: 1px solid var(--bp-linha); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.bp-carimbo span { padding: 3px 8px; border-top: 1px solid color-mix(in srgb, var(--bp-linha) 35%, transparent); }
+.bp-carimbo span:nth-of-type(odd) { border-right: 1px solid color-mix(in srgb, var(--bp-linha) 35%, transparent); text-transform: uppercase; font-size: 8.5px; letter-spacing: .14em; }
+@media (max-width: 520px) { .bp-carimbo { font-size: 8px; right: 12px; } .bp-carimbo span:nth-of-type(odd) { font-size: 7px; } .bp-carimbo b, .bp-carimbo span { padding: 2px 6px; } }

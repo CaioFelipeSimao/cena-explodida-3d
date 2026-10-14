@@ -1,0 +1,7 @@
+{
+  "familia": "BarlowSC",
+  "arquivos": [
+    { "peso": 500, "arquivo": "barlow-500.woff2" },
+    { "peso": 600, "arquivo": "barlow-600.woff2" }
+  ]
+}
