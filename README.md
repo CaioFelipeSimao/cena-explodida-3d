@@ -29,7 +29,7 @@ cd cena-explodida-scroll
 node scripts/compor.cjs props/nikon-f saida.html --plugin ../cena-blueprint-3d/plugin --plugin ../cena-explodida-interativa/plugin
 ```
 
-Os testes automáticos ficam no repositório `arsenal-scroll3d`.
+Os testes automáticos (puppeteer-core: encaixe, oclusão, comparação pixel a pixel) ficam num repositório separado e privado.
 
 Cada pasta também é uma skill do Claude Code: o `SKILL.md` ensina o Claude a usar o motor.
 Desenvolvido com Claude Code e Codex.
